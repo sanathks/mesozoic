@@ -1,0 +1,32 @@
+{
+  "mode": "standard",
+  "blockedCommands": [
+    "rm -rf /",
+    "rm -rf ~",
+    "rm -rf /*",
+    "mkfs",
+    "dd if=",
+    "> /dev/sda",
+    "chmod -R 777 /",
+    ":(){ :|:& };:"
+  ],
+  "blockedPatterns": [
+    "curl .* [|] (bash|sh)",
+    "wget .* [|] (bash|sh)",
+    "sudo .*",
+    "su -"
+  ],
+  "allowedCommands": [],
+  "allowedPatterns": [],
+  "allowedPaths": [],
+  "blockedPathPatterns": [
+    "~/.ssh",
+    "~/.aws",
+    "~/.gnupg",
+    "~/.meso/auth.json",
+    "/etc/shadow",
+    "/etc/passwd",
+    ".env"
+  ],
+  "allowedNpmInstalls": []
+}

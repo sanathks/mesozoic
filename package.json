@@ -1,0 +1,33 @@
+{
+  "name": "meso",
+  "version": "1.0.0",
+  "description": "Meso agent runtime built on Pi",
+  "main": "dist/cli/main.js",
+  "bin": {
+    "meso": "./bin/meso"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepare": "npm run build",
+    "dev": "node --watch --import tsx src/index.ts",
+    "meso": "node dist/cli/main.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@clack/prompts": "^1.2.0",
+    "@mariozechner/pi-coding-agent": "^0.65.0",
+    "@slack/bolt": "^4.6.0",
+    "@tavily/core": "^0.7.2",
+    "better-sqlite3": "^12.8.0",
+    "citty": "^0.2.2",
+    "dotenv": "^17.4.1"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "id": "example",
+  "name": "Example",
+  "description": "Example Meso agent",
+  "prompts": {
+    "identity": "IDENTITY.md",
+    "soul": "SOUL.md",
+    "extra": ["COMMS.md"]
+  },
+  "models": {
+    "main": [
+      { "provider": "anthropic", "id": "claude-sonnet-4-6" },
+      { "provider": "openai-codex", "id": "gpt-5.4" }
+    ],
+    "side": { "provider": "openai-codex", "id": "gpt-5.4-mini" }
+  },
+  "runners": {
+    "slack": {
+      "enabled": true,
+      "botTokenEnv": "EXAMPLE_SLACK_BOT_TOKEN",
+      "appTokenEnv": "EXAMPLE_SLACK_APP_TOKEN",
+      "signingSecretEnv": "EXAMPLE_SLACK_SIGNING_SECRET",
+      "mode": "assistant"
+    },
+    "tui": { "enabled": true }
+  },
+  "storage": {
+    "sessionsDir": "sessions",
+    "logsDir": "logs",
+    "memoryDir": "memory",
+    "memoryDb": "memory.db",
+    "settingsFile": "settings.json",
+    "guardrailsLocalConfig": "guardrails.local.json",
+    "jobsFile": "jobs.json",
+    "eventsDir": "events",
+    "eventStateFile": "logs/event-state.json"
+  },
+  "tools": { "enabled": ["memory", "search"] },
+  "extensions": { "enabled": ["guardrails"] },
+  "memory": { "enabled": true, "maxRelevantItems": 8 },
+  "guardrails": {
+    "enabled": true,
+    "projectConfig": "__RUNTIME__/guardrails.json",
+    "localConfig": "guardrails.local.json"
+  },
+  "behavior": {
+    "progressUpdates": "single-message",
+    "stopWord": "stop",
+    "continuousDmSession": true
+  }
+}
