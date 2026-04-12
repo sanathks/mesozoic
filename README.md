@@ -1,11 +1,13 @@
 # Meso
 
-A runtime for AI agents. Each agent is a folder with a personality, memory, and tools.
+A runtime for AI agents. Built on [Pi](https://github.com/mariozechner/pi-coding-agent).
+
+Each agent is a folder with a personality, memory, and tools. No Docker, no database server — just Node.
 
 ## Get Started
 
 ```bash
-npm install -g meso
+npm install -g mesozoic
 meso init
 ```
 
@@ -32,6 +34,10 @@ meso upgrade [agent]     # Apply config updates
 meso doctor <agent>      # Health check
 meso run <agent> --tui   # Chat in terminal
 ```
+
+## Built On
+
+Meso uses [Pi](https://github.com/mariozechner/pi-coding-agent) as its core agent engine — sessions, tool execution, model providers, and auth are powered by Pi's SDK.
 
 ## License
 
