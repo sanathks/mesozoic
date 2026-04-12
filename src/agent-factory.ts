@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { checkBashCommand, checkFilePath } from "./guardrails.js";
-import { loadMemoryIndex, loadTodayMemories } from "./tools/memory.js";
+import { loadTodayMemories } from "./tools/memory.js";
 import { resolveAgentPath } from "./core/storage.js";
 
 // ─── Guardrail extension ──────────────────────────────────────────────────────
@@ -58,8 +58,6 @@ export function buildSystemPrompt(cwd: string, opts: { mode: AgentMode; includeT
     .map((file) => fs.readFileSync(resolveAgentPath(agentRoot, file), "utf-8"))
     .join("\n\n");
 
-  const memoryIndex = loadMemoryIndex();
-
   const todaySection = opts.includeToday
     ? (() => {
         const today = loadTodayMemories();
@@ -87,5 +85,5 @@ ${modeSection}
 - Prefer writing prompts like: "Gather X, summarize as Y, then send it using tool Z to destination Q." rather than vague prompts like "send the update here later".
 - For recurring jobs, optimize for repeatability and low ambiguity.
 - Memory system: the active agent memory directory contains MEMORY.md as the permanent index and daily logs in memory-YYYY-MM-DD.md. Proactively save important information. When something is worth long-term remembering, also update the index with memory update_index.
-- When the user references something from a past conversation, use memory search.${memoryIndex}${todaySection}`;
+- When the user references something from a past conversation, use memory search.${todaySection}`;
 }

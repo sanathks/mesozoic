@@ -12,7 +12,7 @@ import { configureAgentEnvironment, resolveAgentPath } from "./storage.js";
 import { createAuthStorage, createModelRegistry, resolveMainModels, type RuntimeConfig } from "../config.js";
 import { buildSystemPrompt } from "../agent-factory.js";
 import { scheduleExtraction } from "../extract-memories.js";
-import { loadTodayMemories } from "../tools/memory.js";
+import { loadMemoryIndex, loadTodayMemories } from "../tools/memory.js";
 import { resolveTools } from "./tool-registry.js";
 import { resolveExtensionFactories } from "./extension-registry.js";
 import { createSchedulerTools } from "../tools/scheduler.js";
@@ -225,9 +225,14 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
     let userText = text;
     if (!todayMemoriesInjected) {
       todayMemoriesInjected = true;
+      const memoryIndex = loadMemoryIndex();
       const todayCtx = loadTodayMemories();
-      if (todayCtx) {
-        userText = `<memory:today>\n${todayCtx}\n</memory:today>\n\n${text}`;
+      const memoryBlock = [
+        memoryIndex ? `<memory:index>\n${memoryIndex}\n</memory:index>` : "",
+        todayCtx ? `<memory:today>\n${todayCtx}\n</memory:today>` : "",
+      ].filter(Boolean).join("\n\n");
+      if (memoryBlock) {
+        userText = `${memoryBlock}\n\n${text}`;
       }
     }
 
