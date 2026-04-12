@@ -1,11 +1,17 @@
 {
-  "name": "meso",
+  "name": "mesozoic",
   "version": "1.0.0",
-  "description": "Meso agent runtime built on Pi",
+  "description": "A runtime for AI agents",
   "main": "dist/cli/main.js",
   "bin": {
-    "meso": "./bin/meso"
+    "meso": "bin/meso"
   },
+  "files": [
+    "bin/",
+    "dist/",
+    "guardrails.json",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsup",
     "prepare": "npm run build",

@@ -1,0 +1,8 @@
+src/
+.claude/
+.env
+.env.*
+bun.lock
+node_modules/
+*.ts
+!dist/**
