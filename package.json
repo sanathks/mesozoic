@@ -4,7 +4,8 @@
   "description": "A runtime for AI agents",
   "main": "dist/cli/main.js",
   "bin": {
-    "meso": "bin/meso"
+    "meso": "bin/meso",
+    "mesozoic": "bin/meso"
   },
   "files": [
     "bin/",
