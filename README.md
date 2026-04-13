@@ -13,10 +13,10 @@ meso init
 
 ## What It Does
 
-- **Guardrails** — configurable safety per agent (off / permissive / standard / strict)
-- **Memory** — agents remember, consolidate, and forget over time
-- **Prompt Caching** — reduce cost and latency
-- **Model Rotation** — automatic provider failover with cooldown
+- **Guardrails** - configurable safety per agent (off / permissive / standard / strict)
+- **Memory** - agents remember, consolidate, and forget over time
+- **Prompt Caching** - reduce cost and latency
+- **Model Rotation** - automatic provider failover with cooldown
 
 ## Commands
 
