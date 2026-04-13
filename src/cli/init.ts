@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as p from "@clack/prompts";
@@ -6,6 +7,12 @@ import * as p from "@clack/prompts";
 function getRepoRoot(): string {
   const thisFile = fileURLToPath(import.meta.url);
   return path.resolve(path.dirname(thisFile), "..", "..");
+}
+
+function isLocalDev(): boolean {
+  // Check if we're running from a local repo (has src/ and package.json) vs global npm install
+  const root = getRepoRoot();
+  return fs.existsSync(path.join(root, "src")) && fs.existsSync(path.join(root, "tsup.config.ts"));
 }
 
 function which(cmd: string): boolean {
@@ -26,8 +33,6 @@ function getVersion(cmd: string): string {
 }
 
 export async function runInit(): Promise<void> {
-  const repoRoot = getRepoRoot();
-
   p.intro("meso init");
 
   // 1. Prerequisites
@@ -35,21 +40,20 @@ export async function runInit(): Promise<void> {
     p.cancel("Node.js is required. Install via: brew install node");
     process.exit(1);
   }
-  if (!which("npm")) {
-    p.cancel("npm is required. Install via: brew install node");
-    process.exit(1);
-  }
   p.log.success(`Node ${getVersion("node")}`);
 
-  // 2. Install deps + build
-  const s = p.spinner();
-  s.start("Installing dependencies...");
-  execSync("npm install", { cwd: repoRoot, stdio: "ignore" });
-  s.stop("Dependencies installed");
+  // 2. Build (only for local dev, not global npm install)
+  if (isLocalDev()) {
+    const repoRoot = getRepoRoot();
+    const s = p.spinner();
+    s.start("Installing dependencies...");
+    execSync("npm install", { cwd: repoRoot, stdio: "ignore" });
+    s.stop("Dependencies installed");
 
-  s.start("Building...");
-  execSync("npm run build", { cwd: repoRoot, stdio: "ignore" });
-  s.stop("Build complete");
+    s.start("Building...");
+    execSync("npm run build", { cwd: repoRoot, stdio: "ignore" });
+    s.stop("Build complete");
+  }
 
   // 3. Create agent
   const { runNewAgentWizard } = await import("./new.js");
@@ -71,12 +75,13 @@ export async function runInit(): Promise<void> {
   }
 
   // 4. Doctor check
-  s.start("Running health check...");
+  const s2 = p.spinner();
+  s2.start("Running health check...");
   try {
     const { runDoctor } = await import("./doctor.js");
     runDoctor(name);
   } catch {}
-  s.stop("Health check complete");
+  s2.stop("Health check complete");
 
   // 5. Done
   p.note(
