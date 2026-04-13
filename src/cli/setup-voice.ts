@@ -3,8 +3,9 @@
  *
  * Handles: Python env, dependencies, model download, mic/speaker selection.
  */
-import { execSync } from "node:child_process";
+import { execSync, spawn as spawnChild } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as p from "@clack/prompts";
@@ -43,7 +44,7 @@ function saveConfig(config: VoiceConfig): void {
 function getPythonBin(): string | null {
   for (const cmd of ["python3.11", "python3.12", "python3.13", "python3"]) {
     try {
-      const version = execSync(`${cmd} --version`, { encoding: "utf-8" }).trim();
+      const version = execSync(`${cmd} --version 2>/dev/null`, { encoding: "utf-8", shell: true }).trim();
       const match = version.match(/(\d+)\.(\d+)/);
       if (match && parseInt(match[1]) >= 3 && parseInt(match[2]) >= 11) return cmd;
     } catch {}
@@ -151,28 +152,33 @@ export async function runSetupVoice(): Promise<void> {
   const localReqs = path.join(VOICE_DIR, "requirements.txt");
   if (fs.existsSync(reqs)) fs.copyFileSync(reqs, localReqs);
 
-  s.start("Installing voice dependencies...");
-  try {
-    const { execFileSync } = await import("node:child_process");
-    const output = execFileSync(pip, ["install", "-r", localReqs], {
-      encoding: "utf-8",
-      timeout: 600000,
-      stdio: ["ignore", "pipe", "pipe"],
+  // Check if deps already installed by testing a key import
+  const depsInstalled = (() => {
+    try {
+      execSync(`${getVenvPython()} -c "import silero_vad, moonshine_onnx, kokoro_onnx, sounddevice" 2>/dev/null`, {
+        stdio: "ignore", shell: true,
+      });
+      return true;
+    } catch { return false; }
+  })();
+
+  if (depsInstalled) {
+    p.log.success("Voice dependencies already installed");
+  } else {
+    s.start("Installing voice dependencies (~1GB, may take a few minutes)...");
+    await new Promise<void>((resolve, reject) => {
+      const child = spawnChild(pip, ["install", "-q", "-r", localReqs], {
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      child.on("close", (code: number) => {
+        if (code === 0) { s.stop("Voice dependencies installed"); resolve(); }
+        else { s.stop("Retrying with details...");
+          execSync(`${pip} install -r ${localReqs}`, { stdio: "inherit", timeout: 600000 });
+          resolve();
+        }
+      });
+      child.on("error", reject);
     });
-    // Count installed vs already-satisfied
-    const lines = output.split("\n").filter(Boolean);
-    const installed = lines.filter((l) => l.startsWith("Collecting") || l.startsWith("Installing")).length;
-    const satisfied = lines.filter((l) => l.includes("already satisfied")).length;
-    if (installed > 0) {
-      s.stop(`Voice dependencies installed (${installed} new packages)`);
-    } else {
-      s.stop(`Voice dependencies ready (${satisfied} packages)`);
-    }
-  } catch (err: any) {
-    const stderr = err?.stderr?.toString() || "";
-    s.stop("Dependency install failed");
-    if (stderr) p.log.error(stderr.slice(-200));
-    throw err;
   }
 
   // Copy bridge script
@@ -188,31 +194,52 @@ export async function runSetupVoice(): Promise<void> {
 
   function runPyScript(label: string, script: string, timeout: number): void {
     const scriptFile = path.join(VOICE_DIR, "_download.py");
-    fs.writeFileSync(scriptFile, script);
-    s.start(`Downloading ${label}...`);
+    // Suppress warnings, only show download progress (stderr has progress bars)
+    const wrapper = `import warnings, os
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+warnings.filterwarnings("ignore")
+${script}`;
+    fs.writeFileSync(scriptFile, wrapper);
+    s.start(`${label}...`);
     try {
       execSync(`${venvPy} ${scriptFile}`, {
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", "ignore", "inherit"],  // stderr shows download bars
         timeout,
       });
       s.stop(`${label} ready`);
-    } catch (err: any) {
-      const stderr = err?.stderr?.toString().slice(-200) || "";
-      s.stop(`${label} — failed`);
-      if (stderr) p.log.warn(stderr);
+    } catch {
+      s.stop(`${label} — will retry on first run`);
     }
     try { fs.unlinkSync(scriptFile); } catch {}
   }
 
-  runPyScript("VAD model (Silero)", `import torch
+  // Check each model — skip if already downloaded
+  const vadCacheDir = path.join(os.homedir(), ".cache", "torch", "hub", "snakers4_silero-vad_master");
+  if (fs.existsSync(vadCacheDir)) {
+    p.log.success("VAD model (Silero) already downloaded");
+  } else {
+    runPyScript("VAD model (Silero)", `import torch
 torch.hub.load('snakers4/silero-vad', 'silero_vad', trust_repo=True)
 `, 120000);
+  }
 
-  runPyScript("STT model (Moonshine Base)", `from moonshine_onnx import MoonshineOnnxModel
+  // Moonshine caches in HF hub
+  const moonshineCache = path.join(os.homedir(), ".cache", "huggingface", "hub", "models--UsefulSensors--moonshine");
+  if (fs.existsSync(moonshineCache)) {
+    p.log.success("STT model (Moonshine) already downloaded");
+  } else {
+    runPyScript("STT model (Moonshine Base)", `from moonshine_onnx import MoonshineOnnxModel
 MoonshineOnnxModel(model_name='moonshine/base')
 `, 180000);
+  }
 
-  runPyScript("TTS model (Kokoro, ~350MB)", `import urllib.request, os
+  const kokoroModel = path.join(modelsDir, "kokoro-v1.0.onnx");
+  const kokoroVoices = path.join(modelsDir, "voices-v1.0.bin");
+  if (fs.existsSync(kokoroModel) && fs.existsSync(kokoroVoices)) {
+    p.log.success("TTS model (Kokoro) already downloaded");
+  } else {
+    runPyScript("TTS model (Kokoro, ~350MB)", `import urllib.request, os
 d = '${modelsDir}'
 m = os.path.join(d, 'kokoro-v1.0.onnx')
 v = os.path.join(d, 'voices-v1.0.bin')
@@ -223,8 +250,13 @@ if not os.path.exists(v):
 from kokoro_onnx import Kokoro
 Kokoro(m, v)
 `, 600000);
+  }
 
-  runPyScript("Smart Turn v3 (turn detection)", `import os, urllib.request, tempfile
+  const smartTurnModel = path.join(os.tmpdir(), "smart_turn_v3", "smart_turn_v3.2_cpu.onnx");
+  if (fs.existsSync(smartTurnModel)) {
+    p.log.success("Smart Turn v3 already downloaded");
+  } else {
+    runPyScript("Smart Turn v3 (turn detection)", `import os, urllib.request, tempfile
 model_dir = os.path.join(tempfile.gettempdir(), 'smart_turn_v3')
 model_path = os.path.join(model_dir, 'smart_turn_v3.2_cpu.onnx')
 if not os.path.exists(model_path):
@@ -232,12 +264,13 @@ if not os.path.exists(model_path):
     urllib.request.urlretrieve(
         'https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/main/smart-turn-v3.2-cpu.onnx',
         model_path)
-# Also warm up the Whisper feature extractor (downloads tokenizer on first run)
 from transformers import WhisperFeatureExtractor
 WhisperFeatureExtractor.from_pretrained('openai/whisper-tiny')
 `, 180000);
+  }
 
-  runPyScript("AEC3 echo cancellation (LiveKit)", `from livekit.rtc import AudioFrame
+  // AEC3 — just verify import works (no download needed, comes with livekit)
+  runPyScript("AEC3 echo cancellation", `from livekit.rtc import AudioFrame
 from livekit.rtc.apm import AudioProcessingModule
 apm = AudioProcessingModule(echo_cancellation=True, noise_suppression=True)
 `, 30000);

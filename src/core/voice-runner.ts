@@ -29,7 +29,7 @@ const BRIDGE_SCRIPT = path.join(VOICE_DIR, "bridge.py");
 function getPythonBin(): string | null {
   for (const cmd of ["python3.11", "python3.12", "python3.13", "python3"]) {
     try {
-      const version = execSync(`${cmd} --version`, { encoding: "utf-8" }).trim();
+      const version = execSync(`${cmd} --version 2>/dev/null`, { encoding: "utf-8", shell: true }).trim();
       const match = version.match(/(\d+)\.(\d+)/);
       if (match && parseInt(match[1]) >= 3 && parseInt(match[2]) >= 11) {
         return cmd;
@@ -185,7 +185,10 @@ export async function runVoiceAgent(agentId: string): Promise<void> {
   // Handle bridge stderr (Python errors)
   bridge.stderr?.on("data", (data: Buffer) => {
     const text = data.toString().trim();
-    if (text) console.error(`  [voice] ${text}`);
+    if (!text) return;
+    // Suppress noisy warnings from HF/torch/tokenizers
+    if (text.includes("unauthenticated") || text.includes("HF_TOKEN") || text.includes("TOKENIZERS_PARALLELISM")) return;
+    console.error(`  [voice] ${text}`);
   });
 
   // Read JSON lines from bridge stdout

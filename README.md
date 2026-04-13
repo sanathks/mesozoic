@@ -2,6 +2,8 @@
 
 Run AI agents that live on Slack, remember conversations, and use tools — all from a single config file.
 
+Built on [Pi](https://github.com/mariozechner/pi-coding-agent).
+
 ```bash
 npm install -g mesozoic
 meso init
@@ -31,26 +33,106 @@ No Docker. No database. Just Node.
 
 **Model Rotation** — define a fallback chain of models across providers. If one fails, the agent switches automatically and waits before retrying.
 
-**Prompt Caching** — static system prompts stay cached across conversations. Memory is injected per-session, not baked into the cache-busting path.
+**Voice Mode** — talk to your agent in real-time. Local STT (Moonshine) and TTS (Kokoro) with Smart Turn detection and echo cancellation for natural conversations.
+
+## Quick Start
+
+```bash
+# Install
+npm install -g mesozoic
+
+# Full guided setup (creates agent, connects providers)
+meso init
+
+# Or step by step
+meso new rex
+meso login
+meso start rex
+```
+
+## Voice Mode
+
+Talk to your agent instead of typing.
+
+```bash
+# One-time setup (downloads ~1GB of local models)
+meso setup voice
+
+# Start a voice conversation
+meso run rex --voice
+```
+
+Voice mode runs STT and TTS locally — only the LLM uses your configured cloud model. Includes Smart Turn v3 for natural turn detection and WebRTC echo cancellation for barge-in (interrupt the agent mid-sentence).
 
 ## Commands
 
 ```bash
-meso init                # Setup from scratch
+# Setup
+meso init                # Full guided setup
 meso new <agent>         # Create agent
 meso configure <agent>   # Personality, guardrails, settings
-meso start [agent]       # Start
+meso setup voice         # Setup voice mode (models, mic, speaker)
+
+# Running
+meso start [agent]       # Start agent (background)
 meso stop [agent]        # Stop
 meso restart [agent]     # Restart
 meso status              # Running agents
+meso run <agent> --tui   # Chat in terminal
+meso run <agent> --voice # Voice conversation
+
+# Management
 meso logs <agent> -f     # Tail logs
 meso login               # Connect model providers
-meso run <agent> --tui   # Chat in terminal
+meso upgrade [agent]     # Apply config updates
+meso doctor <agent>      # Health check
 ```
 
-## Built On
+## Agent Configuration
 
-Core agent engine powered by [Pi](https://github.com/mariozechner/pi-coding-agent) — sessions, streaming, tool execution, and model providers.
+Everything lives in `agent.json`:
+
+```json
+{
+  "name": "Rex",
+  "models": {
+    "main": [
+      { "provider": "anthropic", "id": "claude-sonnet-4-6" },
+      { "provider": "openai-codex", "id": "gpt-5.4" }
+    ]
+  },
+  "behavior": {
+    "stopWord": "stop",
+    "continuousDmSession": true
+  },
+  "runtime": {
+    "thinking": "off",
+    "compaction": { "enabled": true }
+  }
+}
+```
+
+Personality in markdown:
+
+```markdown
+# IDENTITY.md
+You are Rex, a coding assistant that lives on Slack.
+
+# SOUL.md
+- be useful
+- be concise
+- use tools when needed
+```
+
+Guardrails in `guardrails.local.json`:
+
+```json
+{
+  "mode": "standard",
+  "blockedCommands": ["rm -rf /"],
+  "allowedPaths": ["/Users/me/projects"]
+}
+```
 
 ## License
 
