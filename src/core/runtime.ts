@@ -57,6 +57,14 @@ function toRuntimeConfig(agent: LoadedAgent): RuntimeConfig {
   };
 }
 
+function runtimeLog(...args: any[]): void {
+  if (process.env.MESO_QUIET !== "1") console.log(...args);
+}
+
+function runtimeError(...args: any[]): void {
+  if (process.env.MESO_QUIET !== "1") console.error(...args);
+}
+
 /**
  * Sync agent.json runtime settings → Pi's settings.json.
  * User edits agent.json, we generate settings.json for Pi.
@@ -87,7 +95,7 @@ function syncPiSettings(agent: LoadedAgent): void {
   fs.writeFileSync(agent.paths.settingsFile, JSON.stringify(settings, null, 2) + "\n");
 }
 
-export async function createAgentRuntime(agentId: string, sessionId: string, mode: "slack" | "tui" | "scheduled", options: AgentRuntimeOptions = {}): Promise<AgentRuntime> {
+export async function createAgentRuntime(agentId: string, sessionId: string, mode: "slack" | "tui" | "voice" | "scheduled", options: AgentRuntimeOptions = {}): Promise<AgentRuntime> {
   const agent = loadAgent(agentId);
   configureAgentEnvironment(agentId, agent.paths, agent.configPath);
   const loaderAgentDir = agent.paths.root;
@@ -154,7 +162,7 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
   // Apply persisted model on startup
   if (currentModelIndex !== 0) {
     const startupModel = models[currentModelIndex];
-    console.log(`[meso:${agent.config.name}] Resuming with model: ${startupModel.provider}/${startupModel.id} (cooldown until ${new Date(primaryCooldownUntil).toISOString()})`);
+    runtimeLog(`[meso:${agent.config.name}] Resuming with model: ${startupModel.provider}/${startupModel.id} (cooldown until ${new Date(primaryCooldownUntil).toISOString()})`);
     try {
       await session.setModel(startupModel);
     } catch {
@@ -178,9 +186,9 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
         currentModelIndex = nextIndex;
         if (wasIndex === 0) {
           primaryCooldownUntil = Date.now() + PRIMARY_COOLDOWN_MS;
-          console.log(`[meso:${agent.config.name}] Primary model on cooldown until ${new Date(primaryCooldownUntil).toISOString()}`);
+          runtimeLog(`[meso:${agent.config.name}] Primary model on cooldown until ${new Date(primaryCooldownUntil).toISOString()}`);
         }
-        console.log(`[meso:${agent.config.name}] Switched to fallback model: ${nextModel.provider}/${nextModel.id}`);
+        runtimeLog(`[meso:${agent.config.name}] Switched to fallback model: ${nextModel.provider}/${nextModel.id}`);
         persistModelState();
         return true;
       } catch {}
@@ -196,7 +204,7 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
       currentModelIndex = 0;
       primaryCooldownUntil = 0;
       persistModelState();
-      console.log(`[meso:${agent.config.name}] Restored primary model: ${models[0].provider}/${models[0].id}`);
+      runtimeLog(`[meso:${agent.config.name}] Restored primary model: ${models[0].provider}/${models[0].id}`);
     } catch {}
   }
 
@@ -209,7 +217,7 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
       currentModelIndex = nextIndex;
       primaryCooldownUntil = 0;
       persistModelState();
-      console.log(`[meso:${agent.config.name}] Manual model switch: ${nextModel.provider}/${nextModel.id}`);
+      runtimeLog(`[meso:${agent.config.name}] Manual model switch: ${nextModel.provider}/${nextModel.id}`);
       return `${nextModel.provider}/${nextModel.id}`;
     } catch {
       return `Failed to switch (staying on ${models[prevIndex].provider}/${models[prevIndex].id})`;
@@ -277,18 +285,18 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
 
       try {
         const activeModel = models[currentModelIndex];
-        console.log(`[meso:${agent.config.name}] prompt start session=${sessionId} mode=${mode} model=${activeModel.provider}/${activeModel.id}`);
+        runtimeLog(`[meso:${agent.config.name}] prompt start session=${sessionId} mode=${mode} model=${activeModel.provider}/${activeModel.id}`);
         await session.prompt(userText);
         unsubscribe();
         if (longRunTimer) clearTimeout(longRunTimer);
-        console.log(`[meso:${agent.config.name}] prompt success session=${sessionId} model=${activeModel.provider}/${activeModel.id} chars=${fullResponse.length}`);
+        runtimeLog(`[meso:${agent.config.name}] prompt success session=${sessionId} model=${activeModel.provider}/${activeModel.id} chars=${fullResponse.length}`);
         scheduleExtraction(text, fullResponse, sessionId, memorySavedThisTurn);
         return fullResponse;
       } catch (err) {
         unsubscribe();
         if (longRunTimer) clearTimeout(longRunTimer);
         const activeModel = models[currentModelIndex];
-        console.error(`[meso:${agent.config.name}] prompt error session=${sessionId} model=${activeModel.provider}/${activeModel.id}:`, err instanceof Error ? err.message : err);
+        runtimeError(`[meso:${agent.config.name}] prompt error session=${sessionId} model=${activeModel.provider}/${activeModel.id}:`, err instanceof Error ? err.message : err);
         lastError = err;
         if (isAbortError(err)) throw err;
         const failedModel = `${activeModel.provider}/${activeModel.id}`;
@@ -297,7 +305,7 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
         const newModel = models[currentModelIndex];
         const newModelName = `${newModel.provider}/${newModel.id}`;
         const reason = isRateLimitError(err) ? "rate-limit" : "error";
-        console.warn(
+        runtimeLog(
           `[meso:${agent.config.name}] retrying prompt with ${newModelName} after ${reason} on ${failedModel}`,
         );
         if (options?.onModelSwitch) {

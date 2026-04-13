@@ -135,10 +135,10 @@ async function runExtraction(job: PendingJob): Promise<void> {
     );
 
     const pin = result.pinned ? " 📌" : "";
-    console.log(`[extract] saved [id:${id}]${pin} (${result.category}): ${result.content.trim()}`);
+    if (process.env.MESO_QUIET !== "1") console.log(`[extract] saved [id:${id}]${pin} (${result.category}): ${result.content.trim()}`);
   } catch (err) {
     // Best-effort — never throw
-    console.error(`[extract] failed thread=${job.threadId}:`, err);
+    if (process.env.MESO_QUIET !== "1") console.error(`[extract] failed thread=${job.threadId}:`, err);
   }
 }
 
@@ -163,7 +163,7 @@ export function scheduleExtraction(
   // Gate 2: no signals — skip Gemma call entirely
   if (!hasMemorySignals(userMessage)) return;
 
-  console.log(`[extract] signal detected thread=${threadId}`);
+  if (process.env.MESO_QUIET !== "1") console.log(`[extract] signal detected thread=${threadId}`);
 
   const job: PendingJob = { userMessage, assistantResponse, threadId };
 

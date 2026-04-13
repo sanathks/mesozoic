@@ -85,12 +85,13 @@ const main = defineCommand({
         channel: { type: "boolean", description: "Run in channel mode (Slack/Discord/Telegram)" },
         slack: { type: "boolean", description: "Run in Slack channel mode" },
         tui: { type: "boolean", description: "Run in terminal UI mode" },
+        voice: { type: "boolean", description: "Run in voice conversation mode" },
         provider: { type: "string", description: "Channel provider (slack, discord, telegram)" },
       },
       async run({ args }) {
         const { runAgent } = await import("./run.js");
-        const mode = args.tui ? "tui" : (args.channel || args.slack) ? "channel" : null;
-        if (!mode) throw new Error("Specify --channel or --tui");
+        const mode = args.voice ? "voice" : args.tui ? "tui" : (args.channel || args.slack) ? "channel" : null;
+        if (!mode) throw new Error("Specify --channel, --tui, or --voice");
         const provider = args.provider || (args.slack ? "slack" : undefined);
         await runAgent(args.agent, mode, provider as any);
       },
@@ -137,6 +138,19 @@ const main = defineCommand({
       async run() {
         const { printStatus } = await import("../daemon/daemon.js");
         printStatus();
+      },
+    }),
+
+    setup: defineCommand({
+      meta: { description: "Setup optional features" },
+      subCommands: {
+        voice: defineCommand({
+          meta: { description: "Setup voice mode (models, mic, speaker)" },
+          async run() {
+            const { runSetupVoice } = await import("./setup-voice.js");
+            await runSetupVoice();
+          },
+        }),
       },
     }),
 

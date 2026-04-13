@@ -68,6 +68,8 @@ export function buildSystemPrompt(cwd: string, opts: { mode: AgentMode; includeT
   const modeSection =
     opts.mode === "slack"
       ? `- You communicate via Slack\n- Use Slack markdown: *bold*, \`code\`, \`\`\`code blocks\`\`\``
+      : opts.mode === "voice"
+        ? `- You are in voice conversation mode — the user is speaking to you\n- Keep responses short and conversational (1-3 sentences)\n- Avoid code blocks, markdown, or long lists — these don't work in speech\n- Be natural and concise, like a phone call\n- If the user needs detailed output, suggest switching to TUI or Slack`
       : opts.mode === "scheduled"
         ? `- You were triggered automatically by the scheduler\n- Complete the task autonomously\n- If the prompt tells you to send a result somewhere, use the appropriate channel tool\n- Do not assume a human is waiting interactively\n- If the prompt contains explicit delivery instructions, follow them exactly\n- If delivery instructions are vague or missing, prefer asking for clarification when possible during interactive scheduling rather than guessing later`
         : `- You are running in terminal (TUI) mode\n- Use standard markdown for responses`;
