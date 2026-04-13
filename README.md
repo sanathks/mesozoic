@@ -1,27 +1,42 @@
 # Meso
 
-A runtime for AI agents. Built on [Pi](https://github.com/mariozechner/pi-coding-agent).
-
-Each agent is a folder with a personality, memory, and tools. No Docker, no database server — just Node.
-
-## Get Started
+Run AI agents that live on Slack, remember conversations, and use tools — all from a single config file.
 
 ```bash
 npm install -g mesozoic
 meso init
 ```
 
-## What It Does
+## How It Works
 
-- **Guardrails** - configurable safety per agent (off / permissive / standard / strict)
-- **Memory** - agents remember, consolidate, and forget over time
-- **Prompt Caching** - reduce cost and latency
-- **Model Rotation** - automatic provider failover with cooldown
+Each agent is a folder. You define its personality in markdown, configure models and safety rules in JSON, and drop custom tools into a directory. Meso handles the rest.
+
+```
+~/.meso/agents/rex/
+  IDENTITY.md       ← who the agent is
+  SOUL.md           ← core values
+  agent.json        ← models, behavior, guardrails
+  tools/            ← custom tools (auto-loaded)
+  skills/           ← reusable prompt+tool bundles
+  memory/           ← agent remembers over time
+```
+
+No Docker. No database. Just Node.
+
+## Features
+
+**Memory** — agents save, search, and consolidate knowledge. A nightly dream job prunes stale memories and reinforces important ones.
+
+**Guardrails** — four safety modes (off / permissive / standard / strict). Block dangerous commands, protect secrets, scope file access — all configurable per agent.
+
+**Model Rotation** — define a fallback chain of models across providers. If one fails, the agent switches automatically and waits before retrying.
+
+**Prompt Caching** — static system prompts stay cached across conversations. Memory is injected per-session, not baked into the cache-busting path.
 
 ## Commands
 
 ```bash
-meso init                # Full setup
+meso init                # Setup from scratch
 meso new <agent>         # Create agent
 meso configure <agent>   # Personality, guardrails, settings
 meso start [agent]       # Start
@@ -30,14 +45,12 @@ meso restart [agent]     # Restart
 meso status              # Running agents
 meso logs <agent> -f     # Tail logs
 meso login               # Connect model providers
-meso upgrade [agent]     # Apply config updates
-meso doctor <agent>      # Health check
 meso run <agent> --tui   # Chat in terminal
 ```
 
 ## Built On
 
-Meso uses [Pi](https://github.com/mariozechner/pi-coding-agent) as its core agent engine — sessions, tool execution, model providers, and auth are powered by Pi's SDK.
+Core agent engine powered by [Pi](https://github.com/mariozechner/pi-coding-agent) — sessions, streaming, tool execution, and model providers.
 
 ## License
 
