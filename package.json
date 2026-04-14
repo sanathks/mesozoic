@@ -10,6 +10,7 @@
   "files": [
     "bin/",
     "dist/",
+    "docs/agent-dev/",
     "voice/",
     "guardrails.json",
     "README.md"

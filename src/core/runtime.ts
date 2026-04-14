@@ -19,6 +19,7 @@ import { createSchedulerTools } from "../tools/scheduler.js";
 import { createChannelTools } from "../tools/channels/index.js";
 import { hasSlackProvider } from "./channel-providers.js";
 import { RuntimeState } from "./runtime-state.js";
+import { setSelfToolContext } from "../tools/self.js";
 
 export interface AgentPromptOptions {
   onProgress?: (message: string) => void | Promise<void>;
@@ -228,6 +229,34 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
     const m = models[currentModelIndex];
     return `${m.provider}/${m.id}`;
   }
+
+  // Wire up the self tool context (after model state is initialized)
+  setSelfToolContext({
+    agentId,
+    agentRoot: agent.paths.root,
+    configPath: agent.configPath,
+    reloadResources: () => loader.reload(),
+    getAvailableModels: async () => {
+      try {
+        const available = await modelRegistry.getAvailable();
+        return available.map((m: any) => ({ provider: m.provider, id: m.id }));
+      } catch { return []; }
+    },
+    getCurrentModel,
+    switchModel: async (provider: string, id: string) => {
+      const model = modelRegistry.find(provider, id);
+      if (!model) return false;
+      try {
+        await session.setModel(model);
+        let idx = models.findIndex((m: any) => m.provider === provider && m.id === id);
+        if (idx === -1) { models.push(model); idx = models.length - 1; }
+        currentModelIndex = idx;
+        primaryCooldownUntil = 0;
+        persistModelState();
+        return true;
+      } catch { return false; }
+    },
+  });
 
   async function prompt(text: string, options?: AgentPromptOptions): Promise<string> {
     let userText = text;

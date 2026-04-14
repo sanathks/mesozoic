@@ -79,6 +79,7 @@ export function buildSystemPrompt(cwd: string, opts: { mode: AgentMode; includeT
 ${soul}
 
 ${extraSections ? `${extraSections}\n\n` : ""}## Tools & Context
+- Current time: ${new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short", timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone })} (${Intl.DateTimeFormat().resolvedOptions().timeZone})
 ${modeSection}
 - Available tools: read, write, edit, bash, memory${process.env.TAVILY_API_KEY ? ", web_search" : ""}, schedule_job, list_jobs, pause_job, resume_job, remove_job, trigger_event, list_events, remove_event${process.env.MESO_HAS_SLACK_TOOLS === "1" ? ", slack_post_message" : ""}
 - When creating scheduled jobs, always save a self-contained prompt. If the user says "here", "this channel", or "this thread", convert that into explicit delivery instructions using the current provider context block in the conversation (for example, <slack_context> today, and similar provider blocks for future channels).
@@ -87,5 +88,6 @@ ${modeSection}
 - Prefer writing prompts like: "Gather X, summarize as Y, then send it using tool Z to destination Q." rather than vague prompts like "send the update here later".
 - For recurring jobs, optimize for repeatability and low ambiguity.
 - Memory system: the active agent memory directory contains MEMORY.md as the permanent index and daily logs in memory-YYYY-MM-DD.md. Proactively save important information. When something is worth long-term remembering, also update the index with memory update_index.
-- When the user references something from a past conversation, use memory search.${todaySection}`;
+- When the user references something from a past conversation, use memory search.
+- Self-modification: you can create custom tools, extensions, and skills. Use \`self read-docs\` to learn how, then write files to your tools/ or skills/ directory and call \`self reload\`. Use \`self status\` to see your current config, \`self switch-model\` to change models, \`self list-models\` to see available models.${todaySection}`;
 }

@@ -472,6 +472,12 @@ export async function runSlackChannel(agentId: string): Promise<void> {
           }
         : msg;
 
+    // In DM channels, ignore message_changed — the Assistant handler already processes DMs.
+    // message_changed in DMs is Slack updating thread metadata, not a new user message.
+    if (msg.subtype === "message_changed" && msg.channel_type === "im") {
+      console.log(`[meso:${agentId}] raw message ignored: message_changed in DM`);
+      return;
+    }
     if (msg.subtype && msg.subtype !== "file_share" && msg.subtype !== "message_changed") {
       console.log(`[meso:${agentId}] raw message ignored: subtype=${msg.subtype}`);
       return;
