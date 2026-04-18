@@ -1,6 +1,6 @@
 {
   "name": "mesozoic",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "description": "A runtime for AI agents",
   "main": "dist/cli/main.js",
   "bin": {
