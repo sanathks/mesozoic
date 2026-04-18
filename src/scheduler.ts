@@ -13,6 +13,7 @@ import { computeNextRunAt, isDueUserJob, isExpiredOneShotJob } from "./core/job-
 const agentId = process.env.MESO_AGENT_ID || process.env.MESO_DEFAULT_AGENT || "rex";
 const TICK_MS = 30_000;
 const JOB_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_CATCHUP_MINUTES = 4 * 60; // fire missed jobs if overdue by less than this
 const runningJobs = new Set<string>();
 const runningEvents = new Set<string>();
 let tickInProgress = false;
@@ -146,6 +147,36 @@ async function tick(): Promise<void> {
         userJobsChanged = true;
         continue;
       }
+
+      // For recurring jobs with a stale nextRunAt: either fire as a catch-up run
+      // (if within the catch-up window) or advance to the next cycle (if too old).
+      // This handles the case where the scheduler was down when the job was due.
+      if (job.enabled && job.schedule.type !== "once" && job.nextRunAt) {
+        const nextMs = new Date(job.nextRunAt).getTime();
+        if (!Number.isNaN(nextMs) && current.getTime() > nextMs) {
+          const alreadyRan = job.lastRunAt && new Date(job.lastRunAt).getTime() >= nextMs;
+          if (alreadyRan) {
+            // nextRunAt wasn't advanced after the last run (e.g. process was killed mid-write) — fix it now
+            job.nextRunAt = computeNextRunAt(job.schedule, current, job.lastRunAt);
+            job.updatedAt = current.toISOString();
+            userJobsChanged = true;
+            continue;
+          }
+          const catchupMs = (job.policy?.maxCatchupMinutes ?? DEFAULT_CATCHUP_MINUTES) * 60_000;
+          const overdueMs = current.getTime() - nextMs;
+          if (overdueMs > catchupMs) {
+            // Too far past the scheduled window — skip this occurrence and move on
+            console.log(`[scheduler:${agentId}] job ${job.id} missed window by ${Math.round(overdueMs / 60_000)}min (catchup limit ${job.policy?.maxCatchupMinutes ?? DEFAULT_CATCHUP_MINUTES}min), advancing to next cycle`);
+            job.nextRunAt = computeNextRunAt(job.schedule, current, job.lastRunAt);
+            job.updatedAt = current.toISOString();
+            userJobsChanged = true;
+            continue;
+          }
+          // Within catch-up window — fall through and fire the job late
+          console.log(`[scheduler:${agentId}] job ${job.id} catch-up run (overdue by ${Math.round(overdueMs / 60_000)}min)`);
+        }
+      }
+
       if (!isDueUserJob(job, current)) continue;
       let result: { status: "success" | "error" | "skipped" | "expired"; error?: string };
       try { result = await runUserJob(agentId, job); } catch (error) { result = { status: "error", error: error instanceof Error ? error.message : String(error) }; }

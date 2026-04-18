@@ -37,6 +37,7 @@ export interface UserScheduledJob {
   updatedAt?: string;
   policy?: {
     maxStalenessMinutes?: number;
+    maxCatchupMinutes?: number;
     retryOnError?: false;
   };
   lastRunAt?: string;

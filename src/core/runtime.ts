@@ -115,7 +115,7 @@ export async function createAgentRuntime(agentId: string, sessionId: string, mod
   const authStorage = createAuthStorage();
   const modelRegistry = createModelRegistry(authStorage);
   const models = resolveMainModels(toRuntimeConfig(agent), modelRegistry);
-  const cwd = process.cwd();
+  const cwd = agent.paths.root;
   const systemPrompt = buildSystemPrompt(cwd, { mode, includeToday: mode === "tui" });
 
   const agentToolsDir = path.join(agent.paths.root, "tools");

@@ -164,9 +164,14 @@ meso run <agent> --tui
 
 ## Production
 
-The included pm2 config currently starts the default agent `rex` as:
-- `meso-rex`
-- `meso-rex-dream`
+Agents run via the built-in Meso daemon (no PM2 required):
+
+```bash
+meso start <agent>    # start agent + scheduler
+meso stop <agent>     # stop
+meso status           # list running agents
+meso logs <agent> -f  # tail logs
+```
 
 ## If you are resuming work
 

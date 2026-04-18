@@ -67,50 +67,18 @@ export async function runSlackChannel(agentId: string): Promise<void> {
     socketClient.clientPingTimeoutMS = 15_000;
     socketClient.serverPingTimeoutMS = 60_000;
   }
-  let reconnectTimer: NodeJS.Timeout | undefined;
   let socketWatchdogTimer: NodeJS.Timeout | undefined;
-  const reconnectDeadlineMs = 45_000;
-  const reconnectWindowMs = 10 * 60_000;
-  const reconnectBurstLimit = 4;
-  const reconnectEvents: number[] = [];
+  // Track how long we've been continuously disconnected from Slack.
+  // Bolt has its own exponential backoff (clientPingTimeoutMS × failureCount), so
+  // we must not exit too early — only give up after a long sustained outage.
+  const MAX_DISCONNECT_MS = 15 * 60_000; // 15 minutes
+  let disconnectedSince: number | null = null;
   let lastSocketConnectedAt = 0;
   let lastSlackIngressAt = 0;
 
-  const clearReconnectTimer = () => {
-    if (reconnectTimer) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = undefined;
-    }
-  };
-
-  const armReconnectTimer = (reason: string) => {
-    clearReconnectTimer();
-    reconnectTimer = setTimeout(() => {
-      console.error(`[meso:${agentId}] Slack socket unhealthy (${reason}) for ${reconnectDeadlineMs}ms. Exiting for restart.`);
-      process.exit(1);
-    }, reconnectDeadlineMs);
-  };
-
-  const recordReconnectEvent = (reason: string) => {
-    const now = Date.now();
-    reconnectEvents.push(now);
-    while (reconnectEvents.length && now - reconnectEvents[0] > reconnectWindowMs) {
-      reconnectEvents.shift();
-    }
-    console.warn(
-      `[meso:${agentId}] Slack reconnect event=${reason} count=${reconnectEvents.length} windowMs=${reconnectWindowMs}`,
-    );
-    if (reconnectEvents.length >= reconnectBurstLimit) {
-      console.error(
-        `[meso:${agentId}] Slack reconnect burst detected (${reconnectEvents.length} events/${reconnectWindowMs}ms). Exiting for restart.`,
-      );
-      process.exit(1);
-    }
-  };
-
   const clearSocketWatchdog = () => {
     if (socketWatchdogTimer) {
-      clearTimeout(socketWatchdogTimer);
+      clearInterval(socketWatchdogTimer);
       socketWatchdogTimer = undefined;
     }
   };
@@ -118,16 +86,13 @@ export async function runSlackChannel(agentId: string): Promise<void> {
   const armSocketWatchdog = () => {
     clearSocketWatchdog();
     socketWatchdogTimer = setInterval(() => {
-      const now = Date.now();
-      const connectedForMs = lastSocketConnectedAt ? now - lastSocketConnectedAt : 0;
-      const ingressIdleMs = lastSlackIngressAt ? now - lastSlackIngressAt : -1;
-      if (lastSocketConnectedAt && connectedForMs > 5 * 60_000 && lastSlackIngressAt && ingressIdleMs > 20 * 60_000 && reconnectEvents.length > 0) {
+      if (disconnectedSince !== null && Date.now() - disconnectedSince > MAX_DISCONNECT_MS) {
         console.error(
-          `[meso:${agentId}] Slack socket appears stale: connectedForMs=${connectedForMs} ingressIdleMs=${ingressIdleMs} reconnectCount=${reconnectEvents.length}. Exiting for restart.`,
+          `[meso:${agentId}] Slack socket has been disconnected for ${MAX_DISCONNECT_MS / 1000}s with no recovery. Exiting for restart.`,
         );
         process.exit(1);
       }
-    }, 30_000);
+    }, 60_000);
   };
 
   if (socketClient?.on) {
@@ -162,31 +127,26 @@ export async function runSlackChannel(agentId: string): Promise<void> {
     });
     socketClient.on("authenticated", () => {
       console.log(`[meso:${agentId}] Slack socket authenticated`);
-      clearReconnectTimer();
     });
     socketClient.on("connected", () => {
       lastSocketConnectedAt = Date.now();
+      disconnectedSince = null;
       console.log(`[meso:${agentId}] Slack socket connected at=${new Date(lastSocketConnectedAt).toISOString()}`);
-      clearReconnectTimer();
-      armSocketWatchdog();
     });
     socketClient.on("reconnecting", () => {
-      console.warn(`[meso:${agentId}] Slack socket reconnecting`);
-      recordReconnectEvent("reconnecting");
-      armReconnectTimer("reconnecting");
+      if (disconnectedSince === null) disconnectedSince = Date.now();
+      console.warn(`[meso:${agentId}] Slack socket reconnecting disconnectedSince=${new Date(disconnectedSince).toISOString()}`);
     });
     socketClient.on("disconnected", () => {
-      console.warn(`[meso:${agentId}] Slack socket disconnected`);
-      recordReconnectEvent("disconnected");
-      armReconnectTimer("disconnected");
+      if (disconnectedSince === null) disconnectedSince = Date.now();
+      console.warn(`[meso:${agentId}] Slack socket disconnected disconnectedSince=${new Date(disconnectedSince).toISOString()}`);
     });
     socketClient.on("error", (error: unknown) => {
       console.error(`[meso:${agentId}] Slack socket error:`, error instanceof Error ? error.stack || error.message : error);
     });
     socketClient.on("close", (...args: unknown[]) => {
-      console.warn(`[meso:${agentId}] Slack socket close event`, args);
-      recordReconnectEvent("close");
-      armReconnectTimer("close");
+      if (disconnectedSince === null) disconnectedSince = Date.now();
+      console.warn(`[meso:${agentId}] Slack socket close disconnectedSince=${new Date(disconnectedSince).toISOString()}`, args);
     });
     socketClient.on("hello", (...args: unknown[]) => {
       console.log(`[meso:${agentId}] Slack socket hello`, args);
@@ -572,8 +532,8 @@ export async function runSlackChannel(agentId: string): Promise<void> {
     });
   });
 
-  await app.start();
   armSocketWatchdog();
+  await app.start();
   console.log(`⚡ ${agent.config.name} is running on Slack via Meso!`);
 
   // Graceful shutdown: cleanly disconnect the socket so Slack stops routing
@@ -582,7 +542,6 @@ export async function runSlackChannel(agentId: string): Promise<void> {
   const shutdown = async (signal: string) => {
     console.log(`[meso:${agentId}] ${signal} received, shutting down gracefully…`);
     clearSocketWatchdog();
-    clearReconnectTimer();
     try {
       await app.stop();
       console.log(`[meso:${agentId}] Slack socket closed cleanly.`);

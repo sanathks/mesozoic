@@ -116,7 +116,6 @@ export function startAgent(agentId: string): void {
   }
 
   const agent = loadAgent(agentId);
-  const repoRoot = path.resolve(getRepoRoot(), "..");
   const logsDir = agent.paths.logsDir;
 
   const supervisorConfig = {
@@ -124,7 +123,7 @@ export function startAgent(agentId: string): void {
     agentRoot: agent.paths.root,
     logsDir,
     stateFile: STATE_FILE,
-    cwd: repoRoot,
+    cwd: agent.paths.root,
     env: {
       NODE_ENV: "production",
       MESO_AGENT_ID: agentId,
@@ -151,7 +150,7 @@ export function startAgent(agentId: string): void {
   const supervisorLog = fs.openSync(supervisorLogPath, "a");
 
   const child = spawn("node", [getSupervisorScript(), JSON.stringify(supervisorConfig)], {
-    cwd: repoRoot,
+    cwd: agent.paths.root,
     env: { ...process.env, ...supervisorConfig.env },
     detached: true,
     stdio: ["ignore", supervisorLog, supervisorLog],

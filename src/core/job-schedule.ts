@@ -120,15 +120,13 @@ export function isDueUserJob(job: UserScheduledJob, current = new Date()): boole
     return !Number.isNaN(next) && current.getTime() >= next;
   }
 
-  const hm = parseHm(job.schedule.time);
-  if (!hm) return false;
-  const dueAt = new Date(current.getFullYear(), current.getMonth(), current.getDate(), hm.hour, hm.minute, 0, 0);
-  if (job.schedule.type === "weekdays" && !job.schedule.days.map((d) => WEEKDAY_MAP[d]).includes(current.getDay())) return false;
-  if (job.schedule.type === "weekly" && WEEKDAY_MAP[job.schedule.day] !== current.getDay()) return false;
-  const currentMinute = new Date(current.getFullYear(), current.getMonth(), current.getDate(), current.getHours(), current.getMinutes(), 0, 0).getTime();
-  if (currentMinute !== dueAt.getTime()) return false;
-  if (!job.lastRunAt) return true;
-  const last = new Date(job.lastRunAt);
-  if (job.schedule.type === "weekly") return current.getTime() - last.getTime() >= 6 * 24 * 60 * 60 * 1000;
-  return !(last.getFullYear() === current.getFullYear() && last.getMonth() === current.getMonth() && last.getDate() === current.getDate());
+  // daily/weekday/weekly: use nextRunAt as the canonical signal.
+  // computeNextRunAt handles day-of-week filtering, so all we check here is
+  // whether the scheduled time has arrived and we haven't run since it.
+  // The scheduler tick handles advancing stale nextRunAt before calling this.
+  if (!job.nextRunAt) return false;
+  const nextMs = new Date(job.nextRunAt).getTime();
+  if (Number.isNaN(nextMs) || current.getTime() < nextMs) return false;
+  if (job.lastRunAt && new Date(job.lastRunAt).getTime() >= nextMs) return false;
+  return true;
 }
